@@ -58,11 +58,11 @@ type
     | TYPE_BOOLEAN                                          # BooleanType
     | TYPE_STRING                                           # StringType
     | TYPE_ANY                                              # AnyType
-    | TYPE_UNIT                                             # UnitType
+    | UNIT                                                    # UnitType
     | TYPE_NOTHING                                          # NothingType
     | IDENTIFIER                                            # CustomType
-    | type QUESTION                                         # NullableType
-    | type EXCLAMATION                                      # PlatformType
+    | type QMARK                                            # NullableType
+    | type BANG                                             # PlatformType
     | type LBRACK RBRACK                                    # ArrayType
     | LPAREN type RPAREN                                    # ParenthesizedType
     | type ARROW type                                       # FunctionType
@@ -97,7 +97,7 @@ classDeclaration
       (LT typeVariable (COMMA typeVariable)* GT)?
       primaryConstructor? 
       (COLON delegationSpecifiers)? 
-      classBody?                                   # ClassDef
+      classBody                                    # ClassDef
     | OBJECT IDENTIFIER 
       (COLON delegationSpecifiers)? 
       classBody                                    # ObjectDef
@@ -113,12 +113,12 @@ classDeclaration
       (LT typeVariable (COMMA typeVariable)* GT)?
       primaryConstructor? 
       (COLON delegationSpecifiers)? 
-      classBody?                                   # SealedClass
+      classBody                                    # SealedClass
     | ENUM CLASS IDENTIFIER 
       (LT typeVariable (COMMA typeVariable)* GT)?
       primaryConstructor? 
       (LPAREN enumEntries RPAREN)? 
-      (SEMI enumClassBody?)?                       # EnumClass
+      (SEMI enumClassBody)?                        # EnumClass
     ;
 
 interfaceDeclaration
@@ -401,8 +401,6 @@ DOT: '.';
 QMARK: '?';
 QMARKQMARK: '??';
 ELVIS: '?:';
-EXCLAMATION: '!';
-BANG: '!';
 DOUBLECOLON: '::';
 AT: '@';
 POW: '^';
@@ -423,6 +421,7 @@ NOT_IN: '!in';
 NOT_IS: '!is';
 VARARG: 'vararg';
 ASQ: 'as?';
+BANG: '!';
 
 // Delimitadores
 SEMI: ';';
