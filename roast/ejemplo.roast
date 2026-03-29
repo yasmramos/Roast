@@ -1,0 +1,52 @@
+// Ejemplo de programa en Roast
+// Demostración de las características del lenguaje
+
+// Declaración de variables
+val nombre = "Roast"
+var version: Int = 1
+
+// Función simple
+fun saludar(nombre: String): String {
+    return "Hola, " + nombre + "! Bienvenido a " + nombre
+}
+
+// Función con expresión
+fun sumar(a: Int, b: Int): Int = a + b
+
+// Clase data
+data class Persona(val nombre: String, val edad: Int)
+
+// Clase principal
+class Programa {
+    val mensaje: String = "Programa en Roast"
+    
+    fun ejecutar() {
+        val saludo = saludar(nombre)
+        println(saludo)
+        
+        val resultado = sumar(5, 3)
+        println("Resultado: " + resultado)
+        
+        // Condicionales
+        if (version > 0) {
+            println("Versión válida")
+        }
+        
+        // When expression (similar a switch)
+        when (version) {
+            1 -> println("Versión inicial")
+            2 -> println("Versión mejorada")
+            else -> println("Versión desconocida")
+        }
+        
+        // Creación de objetos
+        val persona = Persona("Juan", 30)
+        println("Persona: " + persona.nombre + ", " + persona.edad)
+    }
+}
+
+// Punto de entrada
+fun main() {
+    val programa = Programa()
+    programa.ejecutar()
+}
