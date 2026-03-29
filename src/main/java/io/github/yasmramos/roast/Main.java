@@ -3,6 +3,7 @@ package io.github.yasmramos.roast;
 import io.github.yasmramos.roast.parser.RoastLexer;
 import io.github.yasmramos.roast.parser.RoastParser;
 import io.github.yasmramos.roast.visitor.RoastAstVisitor;
+import io.github.yasmramos.roast.semantic.SemanticAnalyzer;
 import org.antlr.v4.runtime.*;
 import org.antlr.v4.runtime.tree.*;
 
@@ -88,14 +89,27 @@ public class Main {
             System.out.println("Parsed " + tree.getChildCount() + " top-level declaration(s)");
             
             // Walk the parse tree using our AST Visitor
-            System.out.println("\n--- Starting Semantic Analysis ---");
+            System.out.println("\n--- Starting AST Traversal ---");
             RoastAstVisitor visitor = new RoastAstVisitor();
             visitor.visitProgram(tree);
             
-            if (visitor.hasErrors()) {
-                System.err.println("\nCompilation failed with " + visitor.getErrors().size() + " semantic error(s)");
+            // Perform semantic analysis
+            System.out.println("\n--- Starting Semantic Analysis ---");
+            SemanticAnalyzer semanticAnalyzer = new SemanticAnalyzer();
+            semanticAnalyzer.visitProgram(tree);
+            
+            if (semanticAnalyzer.hasErrors()) {
+                System.err.println("\nSemantic Analysis Failed:");
+                for (String error : semanticAnalyzer.getErrors()) {
+                    System.err.println("  " + error);
+                }
+                System.err.println("\nCompilation failed with " + semanticAnalyzer.getErrors().size() + " semantic error(s)");
                 System.exit(1);
             }
+            
+            System.out.println("Semantic analysis completed successfully!");
+            System.out.println("Symbol Table Contents:");
+            System.out.println(semanticAnalyzer.getSymbolTable());
             
             System.out.println("\n✓ Compilation completed successfully!");
             

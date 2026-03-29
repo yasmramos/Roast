@@ -2,642 +2,429 @@ package io.github.yasmramos.roast.visitor;
 
 import io.github.yasmramos.roast.parser.RoastBaseVisitor;
 import io.github.yasmramos.roast.parser.RoastParser;
-import org.antlr.v4.runtime.tree.ErrorNode;
-import org.antlr.v4.runtime.tree.TerminalNode;
-
-import java.util.*;
 
 /**
- * AST Visitor for the Roast programming language.
- * This visitor traverses the parse tree and performs semantic analysis,
- * type checking, and scope resolution.
+ * AST Visitor for printing the structure of Roast programs.
  */
 public class RoastAstVisitor extends RoastBaseVisitor<Void> {
     
-    private final Map<String, SymbolInfo> symbolTable = new HashMap<>();
-    private final List<String> errors = new ArrayList<>();
-    private final List<String> warnings = new ArrayList<>();
-    private int currentScope = 0;
-    private final Stack<Map<String, SymbolInfo>> scopeStack = new Stack<>();
+    private int indentLevel = 0;
     
-    public RoastAstVisitor() {
-        scopeStack.push(new HashMap<>());
+    private void printIndent() {
+        for (int i = 0; i < indentLevel; i++) {
+            System.out.print("  ");
+        }
     }
     
-    /**
-     * Represents a symbol in the symbol table.
-     */
-    public static class SymbolInfo {
-        public enum SymbolKind {
-            VARIABLE, FUNCTION, CLASS, INTERFACE, PARAMETER, FIELD
-        }
-        
-        private final String name;
-        private final SymbolKind kind;
-        private final String type;
-        private final int scope;
-        private boolean isMutable;
-        private boolean isInitialized;
-        
-        public SymbolInfo(String name, SymbolKind kind, String type, int scope) {
-            this.name = name;
-            this.kind = kind;
-            this.type = type;
-            this.scope = scope;
-            this.isMutable = true; // Default to mutable (var)
-            this.isInitialized = false;
-        }
-        
-        public String getName() { return name; }
-        public SymbolKind getKind() { return kind; }
-        public String getType() { return type; }
-        public int getScope() { return scope; }
-        public boolean isMutable() { return isMutable; }
-        public void setMutable(boolean mutable) { isMutable = mutable; }
-        public boolean isInitialized() { return isInitialized; }
-        public void setInitialized(boolean initialized) { isInitialized = initialized; }
+    private void println(String text) {
+        printIndent();
+        System.out.println(text);
     }
-    
+
     @Override
     public Void visitProgram(RoastParser.ProgramContext ctx) {
-        System.out.println("=== Starting AST Traversal ===");
-        enterScope();
-        
-        // Visit all declarations in the program
-        for (int i = 0; i < ctx.getChildCount(); i++) {
-            ctx.getChild(i).accept(this);
+        println("Program");
+        indentLevel++;
+        for (int i = 0; i < ctx.statement().size(); i++) {
+            visitStatement(ctx.statement(i));
         }
-        
-        exitScope();
-        System.out.println("=== AST Traversal Complete ===");
-        
-        if (!errors.isEmpty()) {
-            System.err.println("\nCompilation failed with " + errors.size() + " error(s):");
-            for (String error : errors) {
-                System.err.println("  ERROR: " + error);
-            }
-        } else {
-            System.out.println("\n✓ No semantic errors found!");
-        }
-        
-        if (!warnings.isEmpty()) {
-            System.out.println("\nWarnings (" + warnings.size() + "):");
-            for (String warning : warnings) {
-                System.out.println("  WARNING: " + warning);
-            }
-        }
-        
+        indentLevel--;
         return null;
     }
-    
+
     @Override
-    public Void visitClassDeclaration(RoastParser.ClassDeclarationContext ctx) {
-        String className = ctx.className.getText();
-        int line = ctx.getStart().getLine();
+    public Void visitVarDeclStmt(RoastParser.VarDeclStmtContext ctx) {
+        if (ctx.variableDeclaration() != null) {
+            visitVariableDeclaration(ctx.variableDeclaration());
+        }
+        return null;
+    }
+
+    private Void visitVariableDeclaration(RoastParser.VariableDeclarationContext ctx) {
+        String name = ctx.IDENTIFIER().getText();
+        String mutability = ctx instanceof RoastParser.MutableVarContext ? "var" : "val";
+        println(mutability + " " + name);
+        indentLevel++;
+        if (ctx.typeAnnotation() != null) {
+            println("Type: " + ctx.typeAnnotation().getText());
+        }
+        if (ctx.expression() != null) {
+            println("Initializer:");
+            indentLevel++;
+            visitExpression(ctx.expression());
+            indentLevel--;
+        }
+        indentLevel--;
+        return null;
+    }
+
+    @Override
+    public Void visitFuncDeclStmt(RoastParser.FuncDeclStmtContext ctx) {
+        String name = ctx.IDENTIFIER().getText();
+        println("Function: " + name);
+        indentLevel++;
         
-        System.out.println("[Line " + line + "] Processing class: " + className);
-        
-        // Check for duplicate class definition
-        if (scopeStack.peek().containsKey(className)) {
-            addError("Duplicate class definition: '" + className + "' at line " + line);
-            return null;
+        // Handle parameters
+        if (ctx.parameters() != null) {
+            println("Parameters:");
+            indentLevel++;
+            for (RoastParser.ParameterContext param : ctx.parameters().parameter()) {
+                String paramName = param.IDENTIFIER().getText();
+                String paramType = param.type() != null ? 
+                                   param.type().getText() : "inferred";
+                println(paramName + ": " + paramType);
+            }
+            indentLevel--;
         }
         
-        // Add class to symbol table
-        SymbolInfo classInfo = new SymbolInfo(className, SymbolInfo.SymbolKind.CLASS, "class", currentScope);
-        scopeStack.peek().put(className, classInfo);
-        
-        // Process type parameters if present
-        if (ctx.typeParameters() != null) {
-            visitTypeParameters(ctx.typeParameters());
+        // Handle return type
+        if (ctx instanceof RoastParser.FunctionDefContext) {
+            RoastParser.FunctionDefContext funcDef = (RoastParser.FunctionDefContext) ctx;
+            if (funcDef.type() != null) {
+                println("Return Type: " + funcDef.type().getText());
+            }
+            
+            // Visit function body
+            if (funcDef.block() != null) {
+                println("Body:");
+                indentLevel++;
+                visitBlock(funcDef.block());
+                indentLevel--;
+            } else if (funcDef.expression() != null) {
+                println("Expression Body:");
+                indentLevel++;
+                visitExpression(funcDef.expression());
+                indentLevel--;
+            }
         }
         
-        // Process primary constructor parameters
-        if (ctx.primaryConstructor() != null) {
-            visitPrimaryConstructor(ctx.primaryConstructor(), className);
-        }
+        indentLevel--;
+        return null;
+    }
+
+    @Override
+    public Void visitClassDeclStmt(RoastParser.ClassDeclStmtContext ctx) {
+        String name = ctx.IDENTIFIER().getText();
+        println("Class: " + name);
+        indentLevel++;
         
-        // Process superclass
-        if (ctx.superclass() != null) {
-            visitSuperclass(ctx.superclass());
-        }
-        
-        // Process class body
         if (ctx.classBody() != null) {
-            enterScope(); // Class body creates a new scope
-            visitClassBody(ctx.classBody(), className);
-            exitScope();
-        }
-        
-        return null;
-    }
-    
-    @Override
-    public Void visitFunctionDeclaration(RoastParser.FunctionDeclarationContext ctx) {
-        // Handle different types of function declarations (InlineFunc, SuspendFunc, etc.)
-        String functionName = "";
-        int line = ctx.getStart().getLine();
-        
-        if (ctx instanceof RoastParser.InlineFuncContext) {
-            RoastParser.InlineFuncContext inlineCtx = (RoastParser.InlineFuncContext) ctx;
-            functionName = inlineCtx.IDENTIFIER().getText();
-            System.out.println("  [Line " + line + "] Processing inline function: " + functionName);
-            processFunctionDetails(inlineCtx.parameters(), inlineCtx.type(), inlineCtx.block(), inlineCtx.expression(), functionName, line);
-        } else if (ctx instanceof RoastParser.SuspendFuncContext) {
-            RoastParser.SuspendFuncContext suspendCtx = (RoastParser.SuspendFuncContext) ctx;
-            functionName = suspendCtx.IDENTIFIER().getText();
-            System.out.println("  [Line " + line + "] Processing suspend function: " + functionName);
-            processFunctionDetails(suspendCtx.parameters(), suspendCtx.type(), suspendCtx.block(), suspendCtx.expression(), functionName, line);
-        } else {
-            // Generic function declaration - try to get identifier from children
-            for (int i = 0; i < ctx.getChildCount(); i++) {
-                if (ctx.getChild(i) instanceof org.antlr.v4.runtime.tree.TerminalNode) {
-                    org.antlr.v4.runtime.tree.TerminalNode node = (org.antlr.v4.runtime.tree.TerminalNode) ctx.getChild(i);
-                    if (node.getSymbol().getType() == RoastParser.IDENTIFIER) {
-                        functionName = node.getText();
-                        break;
-                    }
+            println("Members:");
+            indentLevel++;
+            for (RoastParser.ClassMemberContext member : ctx.classBody().classMember()) {
+                if (member.variableDeclaration() != null) {
+                    visitVariableDeclaration(member.variableDeclaration());
+                } else if (member.functionDeclaration() != null) {
+                    visitFunctionDeclaration(member.functionDeclaration());
                 }
             }
-            if (!functionName.isEmpty()) {
-                System.out.println("  [Line " + line + "] Processing function: " + functionName);
-            }
+            indentLevel--;
         }
         
+        indentLevel--;
         return null;
     }
-    
-    private void processFunctionDetails(RoastParser.ParametersContext params, RoastParser.TypeContext returnType, 
-                                        RoastParser.BlockContext block, RoastParser.ExpressionContext expression,
-                                        String functionName, int line) {
-        // Check for duplicate function in current scope (simplified - doesn't handle overloading)
-        if (scopeStack.peek().containsKey(functionName)) {
-            SymbolInfo existing = scopeStack.peek().get(functionName);
-            if (existing.getKind() == SymbolInfo.SymbolKind.FUNCTION) {
-                addWarning("Function '" + functionName + "' already defined in this scope (overloading not fully supported yet)");
-            }
-        }
-        
-        // Add function to symbol table
-        String returnTypeStr = returnType != null ? returnType.getText() : "Unit";
-        SymbolInfo funcInfo = new SymbolInfo(functionName, SymbolInfo.SymbolKind.FUNCTION, returnTypeStr, currentScope);
-        scopeStack.peek().put(functionName, funcInfo);
-        
-        // Process function parameters
-        if (params != null) {
-            visitFunctionParameters(params);
-        }
-        
-        // Process function body
-        enterScope(); // Function body creates a new scope
-        if (block != null) {
-            visitBlock(block);
-        } else if (expression != null) {
-            visitExpression(expression);
-        }
-        exitScope();
-    }
-    
-    private void visitBlock(RoastParser.BlockContext ctx) {
-        if (ctx.statement() != null) {
-            for (RoastParser.StatementContext stmtCtx : ctx.statement()) {
-                stmtCtx.accept(this);
-            }
-        }
-    }
-    
+
     @Override
-    public Void visitVariableDeclaration(RoastParser.VariableDeclarationContext ctx) {
-        String varName = "";
-        int line = ctx.getStart().getLine();
-        boolean isVal = false;
-        boolean isVar = false;
-        String type = "inferred";
-        
-        // Handle different types of variable declarations
-        if (ctx instanceof RoastParser.ImmutableVarContext) {
-            RoastParser.ImmutableVarContext immutableCtx = (RoastParser.ImmutableVarContext) ctx;
-            varName = immutableCtx.IDENTIFIER().getText();
-            isVal = true;
-            System.out.println("  [Line " + line + "] Processing immutable variable (val): " + varName);
-            
-            if (immutableCtx.expression() != null) {
-                visitExpression(immutableCtx.expression());
-            }
-        } else if (ctx instanceof RoastParser.MutableVarContext) {
-            RoastParser.MutableVarContext mutableCtx = (RoastParser.MutableVarContext) ctx;
-            varName = mutableCtx.IDENTIFIER().getText();
-            isVar = true;
-            System.out.println("  [Line " + line + "] Processing mutable variable (var): " + varName);
-            
-            if (mutableCtx.expression() != null) {
-                visitExpression(mutableCtx.expression());
-            }
-        } else if (ctx instanceof RoastParser.TypedVarContext) {
-            RoastParser.TypedVarContext typedCtx = (RoastParser.TypedVarContext) ctx;
-            varName = typedCtx.IDENTIFIER().getText();
-            type = typedCtx.type() != null ? typedCtx.type().getText() : "inferred";
-            isVar = false; // Typed without var/val keyword - default to immutable
-            System.out.println("  [Line " + line + "] Processing typed variable: " + varName + " : " + type);
-            
-            if (typedCtx.expression() != null) {
-                visitExpression(typedCtx.expression());
-            }
-        } else {
-            // Try to get identifier from children
-            for (int i = 0; i < ctx.getChildCount(); i++) {
-                if (ctx.getChild(i) instanceof org.antlr.v4.runtime.tree.TerminalNode) {
-                    org.antlr.v4.runtime.tree.TerminalNode node = (org.antlr.v4.runtime.tree.TerminalNode) ctx.getChild(i);
-                    if (node.getSymbol().getType() == RoastParser.IDENTIFIER) {
-                        varName = node.getText();
-                        break;
-                    }
-                }
-            }
-            if (!varName.isEmpty()) {
-                System.out.println("  [Line " + line + "] Processing variable: " + varName);
-            }
-        }
-        
-        if (!varName.isEmpty()) {
-            // Check for duplicate variable in current scope
-            if (scopeStack.peek().containsKey(varName)) {
-                addError("Variable '" + varName + "' already defined in this scope at line " + line);
-                return null;
-            }
-            
-            // Add variable to symbol table
-            SymbolInfo.SymbolKind kind = SymbolInfo.SymbolKind.VARIABLE;
-            SymbolInfo varInfo = new SymbolInfo(varName, kind, type, currentScope);
-            varInfo.setMutable(isVar);
-            scopeStack.peek().put(varName, varInfo);
-            varInfo.setInitialized(true); // Initialized if we got here
-        }
-        
-        return null;
-    }
-    
-    @Override
-    public Void visitAssignment(RoastParser.AssignmentContext ctx) {
-        String varName = ctx.assignmentTarget().getText();
-        int line = ctx.getStart().getLine();
-        
-        System.out.println("  [Line " + line + "] Processing assignment to: " + varName);
-        
-        // Find variable in symbol table
-        SymbolInfo varInfo = findSymbol(varName);
-        if (varInfo == null) {
-            addError("Undefined variable: '" + varName + "' at line " + line);
-            return null;
-        }
-        
-        // Check if variable is mutable
-        if (!varInfo.isMutable()) {
-            addError("Cannot assign to immutable variable '" + varName + "' at line " + line);
-            return null;
-        }
-        
-        // Process assigned expression
+    public Void visitAssignmentStmt(RoastParser.AssignmentStmtContext ctx) {
+        String name = ctx.IDENTIFIER().getText();
+        println("Assignment: " + name);
+        indentLevel++;
         if (ctx.expression() != null) {
             visitExpression(ctx.expression());
         }
-        
-        varInfo.setInitialized(true);
+        indentLevel--;
         return null;
     }
-    
+
     @Override
-    public Void visitIfStatement(RoastParser.IfStatementContext ctx) {
-        int line = ctx.getStart().getLine();
-        System.out.println("  [Line " + line + "] Processing if statement");
-        
-        // Process condition
+    public Void visitExprStmt(RoastParser.ExprStmtContext ctx) {
+        println("Expression Statement:");
+        indentLevel++;
         if (ctx.expression() != null) {
             visitExpression(ctx.expression());
         }
-        
-        // Process then branch
-        if (ctx.statement(0) != null) {
-            enterScope();
-            ctx.statement(0).accept(this);
-            exitScope();
-        }
-        
-        // Process else branch if present
-        if (ctx.ELSE() != null && ctx.statement(1) != null) {
-            enterScope();
-            ctx.statement(1).accept(this);
-            exitScope();
-        }
-        
+        indentLevel--;
         return null;
     }
-    
+
     @Override
-    public Void visitWhileStatement(RoastParser.WhileStatementContext ctx) {
-        int line = ctx.getStart().getLine();
-        System.out.println("  [Line " + line + "] Processing while loop");
-        
-        // Process condition
-        if (ctx.expression() != null) {
-            visitExpression(ctx.expression());
+    public Void visitIfStmt(RoastParser.IfStmtContext ctx) {
+        println("If Statement");
+        indentLevel++;
+        println("Condition:");
+        indentLevel++;
+        if (ctx.expression(0) != null) {
+            visitExpression(ctx.expression(0));
         }
-        
-        // Process loop body
-        if (ctx.statement() != null) {
-            enterScope();
-            ctx.statement().accept(this);
-            exitScope();
-        }
-        
-        return null;
-    }
-    
-    @Override
-    public Void visitForStatement(RoastParser.ForStatementContext ctx) {
-        int line = ctx.getStart().getLine();
-        String loopVar = ctx.loopVariable.getText();
-        
-        System.out.println("  [Line " + line + "] Processing for loop with variable: " + loopVar);
-        
-        enterScope(); // For loop creates a new scope for the loop variable
-        
-        // Add loop variable to symbol table
-        SymbolInfo loopVarInfo = new SymbolInfo(loopVar, SymbolInfo.SymbolKind.VARIABLE, "inferred", currentScope);
-        scopeStack.peek().put(loopVar, loopVarInfo);
-        
-        // Process iterable expression
-        if (ctx.expression() != null) {
-            visitExpression(ctx.expression());
-        }
-        
-        // Process loop body
-        if (ctx.statement() != null) {
-            ctx.statement().accept(this);
-        }
-        
-        exitScope();
-        return null;
-    }
-    
-    @Override
-    public Void visitReturnStatement(RoastParser.ReturnStatementContext ctx) {
-        int line = ctx.getStart().getLine();
-        System.out.println("  [Line " + line + "] Processing return statement");
-        
-        // Process return expression if present
-        if (ctx.expression() != null) {
-            visitExpression(ctx.expression());
-        }
-        
-        return null;
-    }
-    
-    @Override
-    public Void visitExpression(RoastParser.ExpressionContext ctx) {
-        // Handle different types of expressions
-        if (ctx.literal() != null) {
-            visitLiteral(ctx.literal());
-        } else if (ctx.identifier() != null) {
-            String identifier = ctx.identifier().getText();
-            int line = ctx.getStart().getLine();
-            
-            // Check if identifier is defined
-            SymbolInfo symbol = findSymbol(identifier);
-            if (symbol == null && !isBuiltInType(identifier)) {
-                addWarning("Potentially undefined identifier: '" + identifier + "' at line " + line);
-            }
-        } else if (ctx.functionCall() != null) {
-            visitFunctionCall(ctx.functionCall());
-        } else if (ctx.binaryOp != null) {
-            // Binary operation - visit both operands
-            if (ctx.expression(0) != null) visitExpression(ctx.expression(0));
-            if (ctx.expression(1) != null) visitExpression(ctx.expression(1));
-        }
-        
-        return null;
-    }
-    
-    @Override
-    public Void visitFunctionCall(RoastParser.FunctionCallContext ctx) {
-        String functionName = ctx.functionName.getText();
-        int line = ctx.getStart().getLine();
-        
-        System.out.println("    [Line " + line + "] Processing function call: " + functionName);
-        
-        // Check if function is defined
-        SymbolInfo funcInfo = findSymbol(functionName);
-        if (funcInfo == null && !isBuiltInFunction(functionName)) {
-            addWarning("Potentially undefined function: '" + functionName + "' at line " + line);
-        }
-        
-        // Process arguments
-        if (ctx.functionArguments() != null) {
-            visitFunctionArguments(ctx.functionArguments());
-        }
-        
-        return null;
-    }
-    
-    @Override
-    public Void visitLiteral(RoastParser.LiteralContext ctx) {
-        if (ctx.STRING_LITERAL() != null) {
-            System.out.println("    Found string literal: " + ctx.STRING_LITERAL().getText());
-        } else if (ctx.INT_LITERAL() != null) {
-            System.out.println("    Found integer literal: " + ctx.INT_LITERAL().getText());
-        } else if (ctx.FLOAT_LITERAL() != null) {
-            System.out.println("    Found float literal: " + ctx.FLOAT_LITERAL().getText());
-        } else if (ctx.BOOLEAN_LITERAL() != null) {
-            System.out.println("    Found boolean literal: " + ctx.BOOLEAN_LITERAL().getText());
-        } else if (ctx.NULL_LITERAL() != null) {
-            System.out.println("    Found null literal");
-        }
-        return null;
-    }
-    
-    // Helper methods
-    
-    private void visitPrimaryConstructor(RoastParser.PrimaryConstructorContext ctx, String className) {
-        System.out.println("    Processing primary constructor for class: " + className);
-        
-        if (ctx.constructorParameters() != null) {
-            for (RoastParser.ConstructorParameterContext paramCtx : ctx.constructorParameters().constructorParameter()) {
-                String paramName = paramCtx.parameterName.getText();
-                String paramType = paramCtx.typeAnnotation() != null ? 
-                                  paramCtx.typeAnnotation().getText().replace(":", "").trim() : "inferred";
-                
-                System.out.println("      Constructor parameter: " + paramName + ": " + paramType);
-                
-                // Add parameter to class scope
-                SymbolInfo paramInfo = new SymbolInfo(paramName, SymbolInfo.SymbolKind.PARAMETER, paramType, currentScope);
-                paramInfo.setMutable(paramCtx.VAR() != null);
-                scopeStack.peek().put(paramName, paramInfo);
-            }
-        }
-    }
-    
-    private void visitClassBody(RoastParser.ClassBodyContext ctx, String className) {
-        if (ctx.classMemberDeclaration() != null) {
-            for (RoastParser.ClassMemberDeclarationContext memberCtx : ctx.classMemberDeclaration()) {
-                if (memberCtx.propertyDeclaration() != null) {
-                    visitPropertyDeclaration(memberCtx.propertyDeclaration(), className);
-                } else if (memberCtx.functionDeclaration() != null) {
-                    visitFunctionDeclaration(memberCtx.functionDeclaration());
-                } else if (memberCtx.initBlock() != null) {
-                    visitInitBlock(memberCtx.initBlock());
-                }
-            }
-        }
-    }
-    
-    private void visitPropertyDeclaration(RoastParser.PropertyDeclarationContext ctx, String className) {
-        String propName = ctx.IDENTIFIER().getText();
-        int line = ctx.getStart().getLine();
-        boolean isVal = ctx.VAL() != null;
-        
-        System.out.println("    [Line " + line + "] Processing property: " + propName + 
-                          " in class " + className + " (" + (isVal ? "val" : "var") + ")");
-        
-        String propType = ctx.type() != null ? 
-                         ctx.type().getText() : "inferred";
-        
-        SymbolInfo.SymbolKind kind = SymbolInfo.SymbolKind.FIELD;
-        SymbolInfo propInfo = new SymbolInfo(propName, kind, propType, currentScope);
-        propInfo.setMutable(!isVal);
-        scopeStack.peek().put(propName, propInfo);
-        
-        if (ctx.expression() != null) {
-            visitExpression(ctx.expression());
-            propInfo.setInitialized(true);
-        }
-    }
-    
-    private void visitInitBlock(RoastParser.InitializerBlockContext ctx) {
-        System.out.println("    Processing init block");
-        enterScope();
+        indentLevel--;
+        println("Then Branch:");
+        indentLevel++;
         if (ctx.block() != null) {
             visitBlock(ctx.block());
         }
-        exitScope();
+        indentLevel--;
+        indentLevel--;
+        return null;
     }
-    
-    private void visitCodeBlock(RoastParser.BlockContext ctx) {
-        if (ctx.statement() != null) {
-            for (RoastParser.StatementContext stmtCtx : ctx.statement()) {
-                stmtCtx.accept(this);
-            }
+
+    @Override
+    public Void visitWhileStmt(RoastParser.WhileStmtContext ctx) {
+        println("While Loop");
+        indentLevel++;
+        println("Condition:");
+        indentLevel++;
+        if (ctx.expression() != null) {
+            visitExpression(ctx.expression());
         }
-    }
-    
-    private void visitFunctionParameters(RoastParser.ParametersContext ctx) {
-        if (ctx.parameter() != null) {
-            for (RoastParser.ParameterContext paramCtx : ctx.parameter()) {
-                String paramName = paramCtx.IDENTIFIER().getText();
-                String paramType = paramCtx.type() != null ? 
-                                  paramCtx.type().getText() : "inferred";
-                
-                System.out.println("      Function parameter: " + paramName + ": " + paramType);
-                
-                SymbolInfo paramInfo = new SymbolInfo(paramName, SymbolInfo.SymbolKind.PARAMETER, paramType, currentScope);
-                scopeStack.peek().put(paramName, paramInfo);
-            }
+        indentLevel--;
+        println("Body:");
+        indentLevel++;
+        if (ctx.block() != null) {
+            visitBlock(ctx.block());
         }
+        indentLevel--;
+        indentLevel--;
+        return null;
     }
-    
-    private void visitFunctionBody(RoastParser.FunctionBodyContext ctx) {
-        if (ctx.codeBlock() != null) {
-            visitCodeBlock(ctx.codeBlock());
+
+    @Override
+    public Void visitForStmt(RoastParser.ForStmtContext ctx) {
+        println("For Loop");
+        indentLevel++;
+        if (ctx.IDENTIFIER() != null) {
+            println("Iterator: " + ctx.IDENTIFIER().getText());
+        }
+        println("Collection:");
+        indentLevel++;
+        if (ctx.expression() != null) {
+            visitExpression(ctx.expression());
+        }
+        indentLevel--;
+        println("Body:");
+        indentLevel++;
+        if (ctx.block() != null) {
+            visitBlock(ctx.block());
+        }
+        indentLevel--;
+        indentLevel--;
+        return null;
+    }
+
+    @Override
+    public Void visitReturnStmt(RoastParser.ReturnStmtContext ctx) {
+        println("Return");
+        indentLevel++;
+        if (ctx.expression() != null) {
+            visitExpression(ctx.expression());
+        }
+        indentLevel--;
+        return null;
+    }
+
+    private Void visitFunctionBody(RoastParser.FunctionBodyContext ctx) {
+        if (ctx.block() != null) {
+            visitBlock(ctx.block());
         } else if (ctx.expression() != null) {
             visitExpression(ctx.expression());
         }
+        return null;
     }
-    
-    private void visitFunctionArguments(RoastParser.FunctionArgumentsContext ctx) {
-        if (ctx.expression() != null) {
-            for (RoastParser.ExpressionContext argCtx : ctx.expression()) {
-                visitExpression(argCtx);
+
+    private Void visitBlock(RoastParser.BlockContext ctx) {
+        println("Block");
+        indentLevel++;
+        if (ctx.statement() != null) {
+            for (RoastParser.StatementContext stmt : ctx.statement()) {
+                visitStatement(stmt);
             }
         }
+        indentLevel--;
+        return null;
     }
-    
-    private void visitTypeParameters(RoastParser.TypeParametersContext ctx) {
-        System.out.println("    Processing type parameters");
-        // Type parameter handling would go here
-    }
-    
-    private void visitSuperclass(RoastParser.SuperclassContext ctx) {
-        String superclassName = ctx.className.getText();
-        System.out.println("    Extends: " + superclassName);
-        
-        // Check if superclass exists
-        SymbolInfo superClassInfo = findSymbol(superclassName);
-        if (superClassInfo == null) {
-            addWarning("Superclass '" + superclassName + "' is not defined");
-        } else if (superClassInfo.getKind() != SymbolInfo.SymbolKind.CLASS) {
-            addError("'" + superclassName + "' is not a class");
-        }
-    }
-    
-    private void enterScope() {
-        currentScope++;
-        scopeStack.push(new HashMap<>());
-        System.out.println("  Entering scope level " + currentScope);
-    }
-    
-    private void exitScope() {
-        if (scopeStack.size() > 1) {
-            scopeStack.pop();
-            System.out.println("  Exiting scope level " + currentScope);
-            currentScope--;
-        }
-    }
-    
-    private SymbolInfo findSymbol(String name) {
-        // Search from innermost scope to outermost
-        for (int i = scopeStack.size() - 1; i >= 0; i--) {
-            Map<String, SymbolInfo> scope = scopeStack.get(i);
-            if (scope.containsKey(name)) {
-                return scope.get(name);
-            }
+
+    private Void visitStatement(RoastParser.StatementContext ctx) {
+        if (ctx instanceof RoastParser.VarDeclStmtContext) {
+            visitVarDeclStmt((RoastParser.VarDeclStmtContext) ctx);
+        } else if (ctx instanceof RoastParser.FuncDeclStmtContext) {
+            visitFuncDeclStmt((RoastParser.FuncDeclStmtContext) ctx);
+        } else if (ctx instanceof RoastParser.ClassDeclStmtContext) {
+            visitClassDeclStmt((RoastParser.ClassDeclStmtContext) ctx);
+        } else if (ctx instanceof RoastParser.AssignmentStmtContext) {
+            visitAssignmentStmt((RoastParser.AssignmentStmtContext) ctx);
+        } else if (ctx instanceof RoastParser.ExprStmtContext) {
+            visitExprStmt((RoastParser.ExprStmtContext) ctx);
+        } else if (ctx instanceof RoastParser.IfStmtContext) {
+            visitIfStmt((RoastParser.IfStmtContext) ctx);
+        } else if (ctx instanceof RoastParser.WhileStmtContext) {
+            visitWhileStmt((RoastParser.WhileStmtContext) ctx);
+        } else if (ctx instanceof RoastParser.ForStmtContext) {
+            visitForStmt((RoastParser.ForStmtContext) ctx);
+        } else if (ctx instanceof RoastParser.ReturnStmtContext) {
+            visitReturnStmt((RoastParser.ReturnStmtContext) ctx);
         }
         return null;
     }
-    
-    private boolean isBuiltInType(String type) {
-        Set<String> builtInTypes = new HashSet<>(Arrays.asList(
-            "Int", "Long", "Float", "Double", "Boolean", "String", "Char", 
-            "Byte", "Short", "Unit", "Any", "Any?", "Nothing"
-        ));
-        return builtInTypes.contains(type);
+
+    private Void visitFunctionDeclaration(RoastParser.FunctionDeclarationContext ctx) {
+        String name = null;
+        
+        // Get identifier from specific context type
+        if (ctx instanceof RoastParser.FunctionDefContext) {
+            name = ((RoastParser.FunctionDefContext) ctx).IDENTIFIER().getText();
+        } else if (ctx instanceof RoastParser.ExternalFuncContext) {
+            name = ((RoastParser.ExternalFuncContext) ctx).IDENTIFIER().getText();
+        } else if (ctx instanceof RoastParser.InlineFuncContext) {
+            name = ((RoastParser.InlineFuncContext) ctx).IDENTIFIER().getText();
+        } else if (ctx instanceof RoastParser.TailRecFuncContext) {
+            name = ((RoastParser.TailRecFuncContext) ctx).IDENTIFIER().getText();
+        } else if (ctx instanceof RoastParser.SuspendFuncContext) {
+            name = ((RoastParser.SuspendFuncContext) ctx).IDENTIFIER().getText();
+        }
+        
+        if (name == null) {
+            return null;
+        }
+        
+        println("Method: " + name);
+        indentLevel++;
+        
+        // Handle parameters based on context type
+        if (ctx instanceof RoastParser.FunctionDefContext) {
+            RoastParser.FunctionDefContext funcDef = (RoastParser.FunctionDefContext) ctx;
+            if (funcDef.parameters() != null) {
+                println("Parameters:");
+                indentLevel++;
+                for (RoastParser.ParameterContext param : funcDef.parameters().parameter()) {
+                    String paramName = param.IDENTIFIER().getText();
+                    String paramType = param.type() != null ? 
+                                       param.type().getText() : "inferred";
+                    println(paramName + ": " + paramType);
+                }
+                indentLevel--;
+            }
+            
+            if (funcDef.block() != null) {
+                println("Body:");
+                indentLevel++;
+                visitBlock(funcDef.block());
+                indentLevel--;
+            } else if (funcDef.expression() != null) {
+                println("Expression Body:");
+                indentLevel++;
+                visitExpression(funcDef.expression());
+                indentLevel--;
+            }
+        } else if (ctx instanceof RoastParser.ExternalFuncContext) {
+            RoastParser.ExternalFuncContext extFunc = (RoastParser.ExternalFuncContext) ctx;
+            if (extFunc.parameters() != null) {
+                println("Parameters:");
+                indentLevel++;
+                for (RoastParser.ParameterContext param : extFunc.parameters().parameter()) {
+                    String paramName = param.IDENTIFIER().getText();
+                    String paramType = param.type() != null ? 
+                                       param.type().getText() : "inferred";
+                    println(paramName + ": " + paramType);
+                }
+                indentLevel--;
+            }
+        } else if (ctx instanceof RoastParser.InlineFuncContext) {
+            RoastParser.InlineFuncContext inlineFunc = (RoastParser.InlineFuncContext) ctx;
+            if (inlineFunc.parameters() != null) {
+                println("Parameters:");
+                indentLevel++;
+                for (RoastParser.ParameterContext param : inlineFunc.parameters().parameter()) {
+                    String paramName = param.IDENTIFIER().getText();
+                    String paramType = param.type() != null ? 
+                                       param.type().getText() : "inferred";
+                    println(paramName + ": " + paramType);
+                }
+                indentLevel--;
+            }
+            
+            if (inlineFunc.block() != null) {
+                println("Body:");
+                indentLevel++;
+                visitBlock(inlineFunc.block());
+                indentLevel--;
+            } else if (inlineFunc.expression() != null) {
+                println("Expression Body:");
+                indentLevel++;
+                visitExpression(inlineFunc.expression());
+                indentLevel--;
+            }
+        } else if (ctx instanceof RoastParser.TailRecFuncContext) {
+            RoastParser.TailRecFuncContext tailRecFunc = (RoastParser.TailRecFuncContext) ctx;
+            if (tailRecFunc.parameters() != null) {
+                println("Parameters:");
+                indentLevel++;
+                for (RoastParser.ParameterContext param : tailRecFunc.parameters().parameter()) {
+                    String paramName = param.IDENTIFIER().getText();
+                    String paramType = param.type() != null ? 
+                                       param.type().getText() : "inferred";
+                    println(paramName + ": " + paramType);
+                }
+                indentLevel--;
+            }
+            
+            if (tailRecFunc.block() != null) {
+                println("Body:");
+                indentLevel++;
+                visitBlock(tailRecFunc.block());
+                indentLevel--;
+            } else if (tailRecFunc.expression() != null) {
+                println("Expression Body:");
+                indentLevel++;
+                visitExpression(tailRecFunc.expression());
+                indentLevel--;
+            }
+        } else if (ctx instanceof RoastParser.SuspendFuncContext) {
+            RoastParser.SuspendFuncContext suspendFunc = (RoastParser.SuspendFuncContext) ctx;
+            if (suspendFunc.parameters() != null) {
+                println("Parameters:");
+                indentLevel++;
+                for (RoastParser.ParameterContext param : suspendFunc.parameters().parameter()) {
+                    String paramName = param.IDENTIFIER().getText();
+                    String paramType = param.type() != null ? 
+                                       param.type().getText() : "inferred";
+                    println(paramName + ": " + paramType);
+                }
+                indentLevel--;
+            }
+            
+            if (suspendFunc.block() != null) {
+                println("Body:");
+                indentLevel++;
+                visitBlock(suspendFunc.block());
+                indentLevel--;
+            } else if (suspendFunc.expression() != null) {
+                println("Expression Body:");
+                indentLevel++;
+                visitExpression(suspendFunc.expression());
+                indentLevel--;
+            }
+        }
+        
+        indentLevel--;
+        return null;
     }
-    
-    private boolean isBuiltInFunction(String name) {
-        Set<String> builtInFunctions = new HashSet<>(Arrays.asList(
-            "print", "println", "toString", "equals", "hashCode", 
-            "rangeTo", "until", "step"
-        ));
-        return builtInFunctions.contains(name);
+
+    private Void visitExpression(RoastParser.ExpressionContext ctx) {
+        if (ctx == null) {
+            return null;
+        }
+        
+        // Simple representation based on context type
+        String exprText = ctx.getText();
+        if (exprText.length() > 50) {
+            exprText = exprText.substring(0, 50) + "...";
+        }
+        println("Expression: " + exprText);
+        return null;
     }
-    
-    private void addError(String message) {
-        errors.add(message);
-        System.err.println("ERROR: " + message);
-    }
-    
-    private void addWarning(String message) {
-        warnings.add(message);
-        System.out.println("WARNING: " + message);
-    }
-    
-    public List<String> getErrors() {
-        return Collections.unmodifiableList(errors);
-    }
-    
-    public List<String> getWarnings() {
-        return Collections.unmodifiableList(warnings);
-    }
-    
-    public boolean hasErrors() {
-        return !errors.isEmpty();
+
+    @Override
+    protected Void defaultResult() {
+        return null;
     }
 }

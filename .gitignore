@@ -1,11 +1,4 @@
 ```
-# Build artifacts
-build/
 .gradle/
-
-# Java/ANTLR generated files
-**/generated-src/
-
-# Dependencies
-.gradle/
+*.class
 ```
