@@ -1,233 +1,509 @@
+// Roast Language Grammar
+// An advanced programming language for JVM with modern features
+// Package: io.github.yasmramos.roast
+
 grammar Roast;
 
-// Reglas principales
-program: (statement)* EOF;
+// Programa principal
+program
+    : (statement)* EOF
+    ;
 
+// Declaraciones y statements
 statement
-    : variableDeclaration
-    | functionDeclaration
-    | classDeclaration
-    | interfaceDeclaration
-    | objectDeclaration
-    | companionObject
-    | assignment
-    | expressionStatement
-    | returnStatement
-    | ifStatement
-    | whenStatement
-    | forStatement
-    | whileStatement
-    | doWhileStatement
-    | breakStatement
-    | continueStatement
-    | throwStatement
-    | tryCatchFinally
+    : variableDeclaration SEMI                     # VarDeclStmt
+    | functionDeclaration                          # FuncDeclStmt
+    | classDeclaration                             # ClassDeclStmt
+    | interfaceDeclaration                         # InterfaceDeclStmt
+    | assignment SEMI                              # AssignmentStmt
+    | returnStatement SEMI                         # ReturnStmt
+    | ifStatement                                  # IfStmt
+    | whenStatement                                # WhenStmt
+    | whileStatement                               # WhileStmt
+    | forStatement                                 # ForStmt
+    | breakStatement SEMI                          # BreakStmt
+    | continueStatement SEMI                       # ContinueStmt
+    | expressionStatement                          # ExprStmt
+    | tryCatchStatement                            # TryCatchStmt
+    | throwStatement SEMI                          # ThrowStmt
     ;
 
-// Declaraciones
+// Statement de expresión
+expressionStatement
+    : expression SEMI
+    ;
+
+// Declaración de variables
 variableDeclaration
-    : ('val' | 'var') IDENTIFIER (':' type)? '=' expression ';'
+    : VAL IDENTIFIER ASSIGN expression                    # ImmutableVar
+    | VAR IDENTIFIER ASSIGN expression                    # MutableVar
+    | type IDENTIFIER (ASSIGN expression)?                # TypedVar
     ;
 
+// Asignación
+assignment
+    : IDENTIFIER ASSIGN expression
+    | expression DOT IDENTIFIER ASSIGN expression
+    ;
+
+// Tipos del lenguaje
+type
+    : TYPE_INT                                              # IntType
+    | TYPE_FLOAT                                            # FloatType
+    | TYPE_DOUBLE                                           # DoubleType
+    | TYPE_LONG                                             # LongType
+    | TYPE_BYTE                                             # ByteType
+    | TYPE_SHORT                                            # ShortType
+    | TYPE_CHAR                                             # CharType
+    | TYPE_BOOLEAN                                          # BooleanType
+    | TYPE_STRING                                           # StringType
+    | TYPE_ANY                                              # AnyType
+    | TYPE_UNIT                                             # UnitType
+    | TYPE_NOTHING                                          # NothingType
+    | IDENTIFIER                                            # CustomType
+    | type QUESTION                                         # NullableType
+    | type EXCLAMATION                                      # PlatformType
+    | type LBRACK RBRACK                                    # ArrayType
+    | LPAREN type RPAREN                                    # ParenthesizedType
+    | type ARROW type                                       # FunctionType
+    | type LT type (COMMA type)* GT                         # GenericType
+    ;
+
+// Declaración de funciones
 functionDeclaration
-    : 'fun' IDENTIFIER '(' (parameter (',' parameter)*)? ')' (':' type)? block
+    : FUN IDENTIFIER parameters (COLON type)? 
+      (ASSIGN expression | block)                           # FunctionDef
+    | EXTERNAL FUN IDENTIFIER parameters (COLON type)?      # ExternalFunc
+    | INLINE FUN IDENTIFIER parameters (COLON type)? 
+      (ASSIGN expression | block)                           # InlineFunc
+    | TAILREC FUN IDENTIFIER parameters (COLON type)? 
+      (ASSIGN expression | block)                           # TailRecFunc
+    | SUSPEND FUN IDENTIFIER parameters (COLON type)? 
+      (ASSIGN expression | block)                           # SuspendFunc
+    ;
+
+// Parámetros de función
+parameters
+    : LPAREN (parameter (COMMA parameter)*)? RPAREN
     ;
 
 parameter
-    : IDENTIFIER ':' type ('=' expression)?
+    : VARARG? IDENTIFIER COLON type (ASSIGN expression)?
     ;
 
+// Clases y objetos
 classDeclaration
-    : 'class' IDENTIFIER ('(' (parameter (',' parameter)*)? ')')? 
-      (':' constructorCall (',' constructorCall)*)? 
-      block
+    : CLASS IDENTIFIER 
+      (LT typeVariable (COMMA typeVariable)* GT)?
+      primaryConstructor? 
+      (COLON delegationSpecifiers)? 
+      classBody?                                   # ClassDef
+    | OBJECT IDENTIFIER 
+      (COLON delegationSpecifiers)? 
+      classBody                                    # ObjectDef
+    | COMPANION OBJECT IDENTIFIER? 
+      (COLON delegationSpecifiers)? 
+      classBody                                    # CompanionObj
+    | DATA CLASS IDENTIFIER 
+      (LT typeVariable (COMMA typeVariable)* GT)?
+      primaryConstructor 
+      (COLON delegationSpecifiers)? 
+      classBody?                                   # DataClass
+    | SEALED CLASS IDENTIFIER 
+      (LT typeVariable (COMMA typeVariable)* GT)?
+      primaryConstructor? 
+      (COLON delegationSpecifiers)? 
+      classBody?                                   # SealedClass
+    | ENUM CLASS IDENTIFIER 
+      (LT typeVariable (COMMA typeVariable)* GT)?
+      primaryConstructor? 
+      (LPAREN enumEntries RPAREN)? 
+      (SEMI enumClassBody?)?                       # EnumClass
     ;
 
 interfaceDeclaration
-    : 'interface' IDENTIFIER ('(' (parameter (',' parameter)*)? ')')? 
-      (':' constructorCall (',' constructorCall)*)? 
-      block
+    : INTERFACE IDENTIFIER 
+      (LT typeVariable (COMMA typeVariable)* GT)?
+      (COLON delegationSpecifiers)? 
+      interfaceBody                                # InterfaceDef
     ;
 
-objectDeclaration
-    : 'object' IDENTIFIER ('(' (parameter (',' parameter)*)? ')')? 
-      (':' constructorCall (',' constructorCall)*)? 
-      block
+typeVariable
+    : IDENTIFIER (COLON type)?
+    ;
+
+primaryConstructor
+    : (PRIVATE | PROTECTED | PUBLIC | INTERNAL)?
+      (INLINE)?
+      constructorParameters
+    ;
+
+constructorParameters
+    : LPAREN (constructorParameter (COMMA constructorParameter)*)? RPAREN
+    ;
+
+constructorParameter
+    : (VAL | VAR)? IDENTIFIER COLON type (ASSIGN expression)?
+    ;
+
+delegationSpecifiers
+    : type (COMMA type)*
+    ;
+
+classBody
+    : LBRACE classMemberDeclaration* RBRACE
+    ;
+
+interfaceBody
+    : LBRACE interfaceMemberDeclaration* RBRACE
+    ;
+
+enumEntries
+    : enumEntry (COMMA enumEntry)*
+    ;
+
+enumEntry
+    : IDENTIFIER (LPAREN expression (COMMA expression)* RPAREN)? classBody?
+    ;
+
+enumClassBody
+    : classMemberDeclaration*
+    ;
+
+classMemberDeclaration
+    : functionDeclaration
+    | propertyDeclaration
+    | initializerBlock
+    | secondaryConstructor
+    | nestedClass
+    ;
+
+interfaceMemberDeclaration
+    : functionDeclaration
+    | propertyDeclaration
+    ;
+
+propertyDeclaration
+    : (VAL | VAR) IDENTIFIER (COLON type)? 
+      (ASSIGN expression)? 
+      (getter? setter? | setter? getter?)
+    ;
+
+getter
+    : GET LPAREN RPAREN (ASSIGN expression | block)
+    ;
+
+setter
+    : SET LPAREN IDENTIFIER COLON type RPAREN (ASSIGN expression | block)
+    ;
+
+initializerBlock
+    : INIT block
+    ;
+
+secondaryConstructor
+    : CONSTRUCTOR parameters (DOT thisOrSuperCall)? block
+    ;
+
+thisOrSuperCall
+    : THIS LPAREN expression (COMMA expression)* RPAREN
+    | SUPER LPAREN expression (COMMA expression)* RPAREN
+    ;
+
+nestedClass
+    : classDeclaration
     ;
 
 companionObject
-    : 'companion' 'object' ('(' (parameter (',' parameter)*)? ')')? 
-      (':' constructorCall (',' constructorCall)*)? 
-      block
-    ;
-
-constructorCall
-    : 'constructor' '(' (expression (',' expression)*)? ')'
-    ;
-
-block
-    : '{' (statement)* '}'
+    : COMPANION OBJECT IDENTIFIER? 
+      (COLON delegationSpecifiers)? 
+      classBody
     ;
 
 // Control de flujo
 ifStatement
-    : 'if' '(' expression ')' block ('else' block)?
+    : IF LPAREN expression RPAREN statement (ELSE statement)?
     ;
 
 whenStatement
-    : 'when' '(' expression ')' '{' (whenEntry)+ '}'
+    : WHEN LPAREN expression? RPAREN LBRACE whenEntry* RBRACE
     ;
 
 whenEntry
-    : (expression (',' expression)*)|'else' '->' block
+    : whenCondition (COMMA whenCondition)* ARROW statement
+    | ELSE ARROW statement
     ;
 
-forStatement
-    : 'for' '(' IDENTIFIER 'in' expression ')' block
+whenCondition
+    : expression
+    | IN expression
+    | NOT_IN expression
+    | IS type
+    | NOT_IS type
     ;
 
 whileStatement
-    : 'while' '(' expression ')' block
+    : WHILE LPAREN expression RPAREN statement
     ;
 
-doWhileStatement
-    : 'do' block 'while' '(' expression ')' ';'
-    ;
-
-breakStatement
-    : 'break' ';'
-    ;
-
-continueStatement
-    : 'continue' ';'
+forStatement
+    : FOR LPAREN IDENTIFIER (COLON type)? IN expression RPAREN statement
     ;
 
 returnStatement
-    : 'return' expression? ';'
+    : RETURN expression?
+    ;
+
+breakStatement
+    : BREAK
+    ;
+
+continueStatement
+    : CONTINUE
     ;
 
 throwStatement
-    : 'throw' expression ';'
+    : THROW expression
     ;
 
-tryCatchFinally
-    : 'try' block (('catch' '(' IDENTIFIER ':' type ')' block)+ | 'finally' block)?
+tryCatchStatement
+    : TRY block (catchBlock+ finallyBlock? | finallyBlock)
     ;
 
-assignment
-    : IDENTIFIER '=' expression ';'
+catchBlock
+    : CATCH LPAREN IDENTIFIER COLON type RPAREN block
     ;
 
-expressionStatement
-    : expression ';'
+finallyBlock
+    : FINALLY block
     ;
 
 // Expresiones
 expression
-    : lambdaExpression
-    | assignmentExpression
-    | ternaryExpression
+    : literal                                                        # LiteralExpr
+    | IDENTIFIER                                                     # IdentifierExpr
+    | LPAREN expression RPAREN                                       # ParenthesizedExpr
+    | expression DOT IDENTIFIER                                      # PropertyAccess
+    | expression DOT functionCall                                    # MethodCall
+    | expression LBRACK expression (COLON expression)? RBRACK        # IndexAccess
+    | expression functionCall                                        # FuncCallExpr
+    | expression POW expression                                      # PowerExpr
+    | (PLUS|MINUS) expression                                        # UnaryExpr
+    | expression (STAR|SLASH|PERCENT) expression                     # MultiplicativeExpr
+    | expression (PLUS|MINUS) expression                             # AdditiveExpr
+    | expression (LT|GT|LTE|GTE) expression                          # ComparisonExpr
+    | expression (EQEQ|BANGEQ) expression                            # EqualityExpr
+    | expression ANDAND expression                                   # LogicalAndExpr
+    | expression OROR expression                                     # LogicalOrExpr
+    | expression (ELVIS|QMARKQMARK) expression                       # NullCoalescingExpr
+    | expression QMARK DOT IDENTIFIER                                # SafeCall
+    | expression QMARK DOT functionCall                              # SafeMethodCall
+    | expression AS type                                             # CastExpr
+    | expression ASQ type                                            # SafeCastExpr
+    | expression IS type                                             # IsExpr
+    | expression BANG IS type                                        # IsNotExpr
+    | expression ASSIGN expression                                   # AssignmentExpr
+    | expression COMMA expression                                    # CommaExpr
+    | LBRACE (IDENTIFIER COLON expression (COMMA IDENTIFIER COLON expression)*)? RBRACE  # MapLiteral
+    | LBRACK (expression (COMMA expression)*)? RBRACK                # ListLiteral
+    | LPAREN (expression (COMMA expression)*)? RPAREN                # TupleExpr
+    | LAMBDA parameters ARROW expression                             # LambdaExpr
+    | expression DOUBLECOLON IDENTIFIER                              # MethodReference
+    | AT IDENTIFIER                                                  # Label
+    | THIS                                                           # ThisExpr
+    | SUPER                                                          # SuperExpr
     ;
 
-lambdaExpression
-    : '{' (parameter (',' parameter)*)? '->' expression '}'
+functionCall
+    : LPAREN (expression (COMMA expression)*)? RPAREN
     ;
 
-assignmentExpression
-    : ternaryExpression
+block
+    : LBRACE (statement)* RBRACE
     ;
 
-ternaryExpression
-    : logicalOrExpression ('?' expression ':' expression)?
-    ;
-
-logicalOrExpression
-    : logicalAndExpression ('||' logicalAndExpression)*
-    ;
-
-logicalAndExpression
-    : equalityExpression ('&&' equalityExpression)*
-    ;
-
-equalityExpression
-    : relationalExpression (('==' | '!=') relationalExpression)*
-    ;
-
-relationalExpression
-    : additiveExpression (('<' | '>' | '<=' | '>=') additiveExpression)*
-    ;
-
-additiveExpression
-    : multiplicativeExpression (('+' | '-') multiplicativeExpression)*
-    ;
-
-multiplicativeExpression
-    : unaryExpression (('*' | '/' | '%') unaryExpression)*
-    ;
-
-unaryExpression
-    : ('!' | '-' | '+' | '++' | '--') unaryExpression
-    | postfixExpression
-    ;
-
-postfixExpression
-    : primaryExpression (('++' | '--') | '.' IDENTIFIER ('(' (expression (',' expression)*)? ')')?)*
-    ;
-
-primaryExpression
-    : literal
-    | IDENTIFIER
-    | '(' expression ')'
-    | 'this'
-    | 'super'
-    ;
-
+// Literales
 literal
-    : INT_LITERAL
-    | FLOAT_LITERAL
-    | STRING_LITERAL
-    | CHAR_LITERAL
-    | BOOLEAN_LITERAL
-    | 'null'
+    : INTEGER_LITERAL                                                # IntLiteral
+    | FLOAT_LITERAL                                                  # FloatLit
+    | DOUBLE_LITERAL                                                 # DoubleLit
+    | LONG_LITERAL                                                   # LongLit
+    | BYTE_LITERAL                                                   # ByteLit
+    | SHORT_LITERAL                                                  # ShortLit
+    | CHAR_LITERAL                                                   # CharLit
+    | STRING_LITERAL                                                 # StringLit
+    | BOOLEAN_LITERAL                                                # BoolLit
+    | KW_NULL                                                        # NullLit
+    | UNIT                                                           # UnitLit
     ;
+
+// Keywords
+VAL: 'val';
+VAR: 'var';
+FUN: 'fun';
+EXTERNAL: 'external';
+INLINE: 'inline';
+TAILREC: 'tailrec';
+SUSPEND: 'suspend';
+CLASS: 'class';
+OBJECT: 'object';
+COMPANION: 'companion';
+DATA: 'data';
+SEALED: 'sealed';
+ENUM: 'enum';
+INTERFACE: 'interface';
+PRIVATE: 'private';
+PROTECTED: 'protected';
+PUBLIC: 'public';
+INTERNAL: 'internal';
+INIT: 'init';
+CONSTRUCTOR: 'constructor';
+GET: 'get';
+SET: 'set';
+IF: 'if';
+ELSE: 'else';
+WHEN: 'when';
+WHILE: 'while';
+FOR: 'for';
+IN: 'in';
+RETURN: 'return';
+BREAK: 'break';
+CONTINUE: 'continue';
+THROW: 'throw';
+TRY: 'try';
+CATCH: 'catch';
+FINALLY: 'finally';
+IS: 'is';
+AS: 'as';
+THIS: 'this';
+SUPER: 'super';
+LAMBDA: 'lambda';
+UNIT: 'Unit';
+KW_NULL: 'null';
 
 // Tipos
-type
-    : IDENTIFIER ('<' type (',' type)* '>')? ('?')?
-    ;
+TYPE_INT: 'Int';
+TYPE_FLOAT: 'Float';
+TYPE_DOUBLE: 'Double';
+TYPE_LONG: 'Long';
+TYPE_BYTE: 'Byte';
+TYPE_SHORT: 'Short';
+TYPE_CHAR: 'Char';
+TYPE_BOOLEAN: 'Boolean';
+TYPE_STRING: 'String';
+TYPE_ANY: 'Any';
+TYPE_NOTHING: 'Nothing';
 
-// Tokens
-IDENTIFIER
-    : [a-zA-Z_][a-zA-Z0-9_]*
-    ;
+// Operadores
+ARROW: '->';
+ASSIGN: '=';
+DOT: '.';
+QMARK: '?';
+QMARKQMARK: '??';
+ELVIS: '?:';
+EXCLAMATION: '!';
+BANG: '!';
+DOUBLECOLON: '::';
+AT: '@';
+POW: '^';
+PLUS: '+';
+MINUS: '-';
+STAR: '*';
+SLASH: '/';
+PERCENT: '%';
+LT: '<';
+GT: '>';
+LTE: '<=';
+GTE: '>=';
+EQEQ: '==';
+BANGEQ: '!=';
+ANDAND: '&&';
+OROR: '||';
+NOT_IN: '!in';
+NOT_IS: '!is';
+VARARG: 'vararg';
+ASQ: 'as?';
 
-INT_LITERAL
-    : [0-9]+
+// Delimitadores
+SEMI: ';';
+COLON: ':';
+COMMA: ',';
+LPAREN: '(';
+RPAREN: ')';
+LBRACE: '{';
+RBRACE: '}';
+LBRACK: '[';
+RBRACK: ']';
+
+// Literales
+INTEGER_LITERAL
+    : DIGIT+
     ;
 
 FLOAT_LITERAL
-    : [0-9]+ '.' [0-9]+ ([eE] [+-]? [0-9]+)? [fFdD]?
+    : DIGIT+ '.' DIGIT+ 'f'
     ;
 
-STRING_LITERAL
-    : '"' (~["\\\r\n] | '\\' .)* '"'
+DOUBLE_LITERAL
+    : DIGIT+ '.' DIGIT+ 'd'?
+    ;
+
+LONG_LITERAL
+    : DIGIT+ 'L'
+    ;
+
+BYTE_LITERAL
+    : DIGIT+ 'b'
+    ;
+
+SHORT_LITERAL
+    : DIGIT+ 's'
     ;
 
 CHAR_LITERAL
-    : '\'' (~['\\\r\n] | '\\' .)* '\''
+    : '\'' (~['\n\r\\] | ESCAPE_SEQUENCE) '\''
+    ;
+
+STRING_LITERAL
+    : '"' (~["\n\r\\] | ESCAPE_SEQUENCE)* '"'
+    | '"""' .*? '"""'
     ;
 
 BOOLEAN_LITERAL
     : 'true' | 'false'
     ;
 
-// Comentarios y espacios en blanco
-COMMENT
-    : '/*' .*? '*/' -> skip
+IDENTIFIER
+    : LETTER (LETTER | DIGIT | '_')*
+    | '`' ~('`')+ '`'
     ;
 
-LINE_COMMENT
+// Fragment rules
+fragment DIGIT
+    : [0-9]
+    ;
+
+fragment LETTER
+    : [a-zA-Z$_]
+    ;
+
+fragment ESCAPE_SEQUENCE
+    : '\\' ['"\\nrtbf]
+    | '\\' UNICODE_ESCAPE
+    ;
+
+fragment UNICODE_ESCAPE
+    : 'u' HEX_DIGIT HEX_DIGIT HEX_DIGIT HEX_DIGIT
+    ;
+
+fragment HEX_DIGIT
+    : [0-9a-fA-F]
+    ;
+
+// Comentarios y whitespace - deben ir al final con skip
+COMMENT
     : '//' ~[\r\n]* -> skip
+    | '/*' .*? '*/' -> skip
     ;
 
 WS
