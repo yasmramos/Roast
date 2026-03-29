@@ -1,0 +1,46 @@
+// Collections and Loops Example in Roast
+// Demonstrates lists, maps, and loop constructs
+
+fun main() {
+    // List operations
+    val numbers = listOf(1, 2, 3, 4, 5)
+    val fruits = listOf("Apple", "Banana", "Cherry")
+    
+    println("=== Numbers ===")
+    for (num in numbers) {
+        println("Number: " + num)
+    }
+    
+    println("\n=== Fruits ===")
+    for (fruit in fruits) {
+        println("Fruit: " + fruit)
+    }
+    
+    // While loop
+    println("\n=== While Loop ===")
+    var counter = 0
+    while (counter < 3) {
+        println("Counter: " + counter)
+        counter = counter + 1
+    }
+    
+    // Map operations
+    println("\n=== Map ===")
+    val ages = mapOf(
+        "Alice" to 25,
+        "Bob" to 30,
+        "Charlie" to 35
+    )
+    
+    for (entry in ages) {
+        println(entry.key + " is " + entry.value + " years old")
+    }
+    
+    // Conditional filtering example
+    println("\n=== Even Numbers ===")
+    for (num in numbers) {
+        if (num % 2 == 0) {
+            println(num + " is even")
+        }
+    }
+}
