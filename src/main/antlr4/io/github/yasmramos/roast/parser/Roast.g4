@@ -503,7 +503,10 @@ fragment HEX_DIGIT
 // Comentarios y whitespace - deben ir al final con skip
 COMMENT
     : '//' ~[\r\n]* -> skip
-    | '/*' .*? '*/' -> skip
+    ;
+
+BLOCK_COMMENT
+    : '/*' .*? '*/' -> skip
     ;
 
 WS
