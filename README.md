@@ -113,8 +113,3 @@ roast/
 ## License
 
 MIT License - See LICENSE file for details.
-
-## Author
-
-- **Yasmir Ramos** - [yasmramos](https://github.com/yasmramos)
-- Contact: yasmramos95@gmail.com
