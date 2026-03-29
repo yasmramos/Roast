@@ -1,0 +1,79 @@
+// Advanced Features Example in Roast
+// Demonstrates interfaces, inheritance, and companion objects
+
+interface Printable {
+    fun print(): String
+}
+
+interface Serializable {
+    fun serialize(): String
+}
+
+// Class with interface implementation
+class Document(val title: String, val content: String) : Printable, Serializable {
+    
+    override fun print(): String {
+        return "Document: " + title + "\nContent: " + content
+    }
+    
+    override fun serialize(): String {
+        return "{\"title\": \"" + title + "\", \"content\": \"" + content + "\"}"
+    }
+}
+
+// Inheritance example
+open class Animal(val name: String) {
+    open fun makeSound(): String {
+        return "..."
+    }
+}
+
+class Dog(name: String, val breed: String) : Animal(name) {
+    override fun makeSound(): String {
+        return "Woof! Woof!"
+    }
+}
+
+class Cat(name: String) : Animal(name) {
+    override fun makeSound(): String {
+        return "Meow!"
+    }
+}
+
+// Companion object example
+class Calculator {
+    companion object {
+        fun add(a: Int, b: Int): Int {
+            return a + b
+        }
+        
+        fun multiply(a: Int, b: Int): Int {
+            return a * b
+        }
+    }
+}
+
+// Main function
+fun main() {
+    // Interface usage
+    val doc = Document("Roast Guide", "Learn Roast programming")
+    println(doc.print())
+    println(doc.serialize())
+    
+    // Inheritance and polymorphism
+    val animals = listOf(
+        Dog("Buddy", "Golden Retriever"),
+        Cat("Whiskers"),
+        Animal("Generic")
+    )
+    
+    for (animal in animals) {
+        println(animal.name + " says: " + animal.makeSound())
+    }
+    
+    // Companion object usage
+    val sum = Calculator.add(10, 20)
+    val product = Calculator.multiply(5, 6)
+    println("Sum: " + sum)
+    println("Product: " + product)
+}
