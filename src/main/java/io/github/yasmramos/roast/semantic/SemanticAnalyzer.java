@@ -262,7 +262,7 @@ public class SemanticAnalyzer extends RoastBaseVisitor<Void> {
         return null;
     }
 
-    private Void visitParameter(RoastParser.ParameterContext ctx) {
+    public Void visitParameter(RoastParser.ParameterContext ctx) {
         String name = ctx.IDENTIFIER().getText();
         String type = "Any";
         

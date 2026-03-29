@@ -16,6 +16,8 @@ repositories {
 dependencies {
     antlr 'org.antlr:antlr4:4.13.1'
     implementation 'org.antlr:antlr4-runtime:4.13.1'
+    implementation 'org.ow2.asm:asm:9.6'
+    implementation 'org.ow2.asm:asm-commons:9.6'
     
     testImplementation 'org.junit.jupiter:junit-jupiter:5.10.0'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
