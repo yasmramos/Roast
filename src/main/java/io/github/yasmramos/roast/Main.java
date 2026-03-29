@@ -2,6 +2,7 @@ package io.github.yasmramos.roast;
 
 import io.github.yasmramos.roast.parser.RoastLexer;
 import io.github.yasmramos.roast.parser.RoastParser;
+import io.github.yasmramos.roast.visitor.RoastAstVisitor;
 import org.antlr.v4.runtime.*;
 import org.antlr.v4.runtime.tree.*;
 
@@ -77,18 +78,26 @@ public class Main {
             // Parse the program
             RoastParser.ProgramContext tree = parser.program();
             
-            // Check for errors
+            // Check for syntax errors
             if (parser.getNumberOfSyntaxErrors() > 0) {
-                System.err.println("Compilation failed with " + parser.getNumberOfSyntaxErrors() + " error(s)");
+                System.err.println("Compilation failed with " + parser.getNumberOfSyntaxErrors() + " syntax error(s)");
                 System.exit(1);
             }
             
-            System.out.println("Compilation successful!");
-            System.out.println("Parsed " + tree.getChildCount() + " statement(s)");
+            System.out.println("Syntax analysis successful!");
+            System.out.println("Parsed " + tree.getChildCount() + " top-level declaration(s)");
             
-            // Walk the parse tree (visitor/listener implementation would go here)
-            ParseTreeWalker walker = new ParseTreeWalker();
-            // walker.walk(listener, tree);
+            // Walk the parse tree using our AST Visitor
+            System.out.println("\n--- Starting Semantic Analysis ---");
+            RoastAstVisitor visitor = new RoastAstVisitor();
+            visitor.visitProgram(tree);
+            
+            if (visitor.hasErrors()) {
+                System.err.println("\nCompilation failed with " + visitor.getErrors().size() + " semantic error(s)");
+                System.exit(1);
+            }
+            
+            System.out.println("\n✓ Compilation completed successfully!");
             
         } catch (Exception e) {
             System.err.println("Error compiling file: " + e.getMessage());
