@@ -4,6 +4,7 @@ import io.github.yasmramos.roast.parser.RoastLexer;
 import io.github.yasmramos.roast.parser.RoastParser;
 import io.github.yasmramos.roast.visitor.RoastAstVisitor;
 import io.github.yasmramos.roast.semantic.SemanticAnalyzer;
+import io.github.yasmramos.roast.codegen.RoastCodeGenerator;
 import org.antlr.v4.runtime.*;
 import org.antlr.v4.runtime.tree.*;
 
@@ -111,7 +112,14 @@ public class Main {
             System.out.println("Symbol Table Contents:");
             System.out.println(semanticAnalyzer.getSymbolTable());
             
+            // Generate bytecode
+            System.out.println("\n--- Starting Code Generation ---");
+            String outputDir = "build/generated/roast";
+            RoastCodeGenerator codeGenerator = new RoastCodeGenerator(outputDir);
+            codeGenerator.visitProgram(tree);
+            
             System.out.println("\n✓ Compilation completed successfully!");
+            System.out.println("Bytecode generated in: " + outputDir);
             
         } catch (Exception e) {
             System.err.println("Error compiling file: " + e.getMessage());
